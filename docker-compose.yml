@@ -1,0 +1,87 @@
+services:
+  # Backend Spring Boot
+  backend:
+    image: ronaldobertolucci/my-games-api:1.2.0
+    container_name: my-games-backend
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - DATASOURCE_URL=jdbc:postgresql://db:5432/${POSTGRES_DB}
+      - DATASOURCE_USERNAME=${POSTGRES_USER}
+      - DATASOURCE_PASSWORD=${POSTGRES_PASSWORD}
+      - API_SECURITY_TOKEN_PASSWORD=${API_SECURITY_TOKEN_PASSWORD}
+      - ADMIN_EMAIL=${ADMIN_EMAIL}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_INIT_ENABLED=${ADMIN_INIT_ENABLED}
+      - CORS_ALLOWED_ORIGINS=${CORS_ALLOWED_ORIGINS}
+      - APP_EMAIL_FROM=${APP_EMAIL_FROM}
+      - APP_FRONTEND_URL=${APP_FRONTEND_URL}
+      - APP_NAME=${APP_NAME}
+      - MAIL_HOST=${MAIL_HOST}
+      - MAIL_PORT=${MAIL_PORT}
+      - MAIL_USERNAME=${MAIL_USERNAME}
+      - MAIL_PASSWORD=${MAIL_PASSWORD}
+      - MAIL_PROTOCOL=${MAIL_PROTOCOL}
+      - MAIL_AUTH=${MAIL_AUTH}
+      - MAIL_STARTTLS=${MAIL_STARTTLS}
+      - PASSWORD_RESET_TOKEN_EXPIRY_HOURS=${PASSWORD_RESET_TOKEN_EXPIRY_HOURS}
+      - PASSWORD_RESET_CLEANUP_CRON=${PASSWORD_RESET_CLEANUP_CRON}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Frontend Angular
+  frontend:
+    image: ronaldobertolucci/my-games-frontend:1.0.1
+    container_name: my-games-frontend
+    environment:
+      - API_URL=/api
+      - PRODUCTION=true
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Database PostgreSQL
+  db:
+    image: postgres:16
+    container_name: my-games-db
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:stable-alpine
+    container_name: my-games-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - backend
+      - frontend
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
